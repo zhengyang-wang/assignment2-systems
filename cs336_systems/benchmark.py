@@ -33,6 +33,12 @@ def parse_args():
     )
 
     benchmarking_setup_group.add_argument(
+        "--apply-torch-compile",
+        action="store_true",
+        help="Use torch.compile"
+    )
+
+    benchmarking_setup_group.add_argument(
         "--warmup-steps",
         type=int,
         default=5,
@@ -112,7 +118,8 @@ def get_model(
     num_heads: int,
     d_ff: int,
     rope_theta: float,
-    device: torch.device
+    device: torch.device,
+    apply_torch_compile: bool
 ) -> torch.nn.Module:
     model = BasicsTransformerLM(
         vocab_size=vocab_size,
@@ -124,13 +131,14 @@ def get_model(
         rope_theta=rope_theta,
     )
     model.to(device)
-    # Device-specific model compilation
-    if device.type == "cpu":
-        model = torch.compile(model)  # Standard compilation for CPU
-    elif device.type == "mps":
-        model = torch.compile(model, backend="aot_eager")  # Optimize backward pass on MPS
-    else:  # CUDA and other devices
-        model = torch.compile(model)  # Standard compilation
+    if apply_torch_compile:
+        # Device-specific model compilation
+        if device.type == "cpu":
+            model = torch.compile(model)  # Standard compilation for CPU
+        elif device.type == "mps":
+            model = torch.compile(model, backend="aot_eager")  # Optimize backward pass on MPS
+        else:  # CUDA and other devices
+            model = torch.compile(model)  # Standard compilation
     return model
 
 
@@ -174,7 +182,8 @@ def main():
         num_heads=args.num_heads,
         d_ff=args.d_ff,
         rope_theta=args.rope_theta,
-        device=device
+        device=device,
+        apply_torch_compile=args.apply_torch_compile
     )
     logger.info(f"model size: {sum(p.numel() for p in model.parameters())}")
 
